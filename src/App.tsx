@@ -111,6 +111,7 @@ export default function App() {
   
   // Custom alerts triggers
   const [alertMsg, setAlertMsg] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+  const [confirmClear, setConfirmClear] = useState<boolean>(false);
 
   // Fullscreen container ref
   const containerRef = useRef<HTMLDivElement>(null);
@@ -203,7 +204,7 @@ export default function App() {
         setSecs(0);
       }
     }
-  }, [config.focus, config.focusMode, running]);
+  }, [config.focus, config.focusMode]);
 
   // Quote carousel auto-changer effect
   useEffect(() => {
@@ -336,11 +337,18 @@ export default function App() {
   };
 
   const handleClearHistory = () => {
-    if (window.confirm("Você realmente deseja limpar todo o seu histórico de hoje?")) {
-      setLogs([]);
-      localStorage.setItem('rf_pro_logs', JSON.stringify([]));
-      triggerAlert("Histórico de foco redefinido.", "info");
+    if (!confirmClear) {
+      setConfirmClear(true);
+      // Automatically reset option if user doesn't confirm in 4 seconds
+      setTimeout(() => {
+        setConfirmClear(false);
+      }, 4000);
+      return;
     }
+    setLogs([]);
+    localStorage.setItem('rf_pro_logs', JSON.stringify([]));
+    setConfirmClear(false);
+    triggerAlert("Histórico de foco redefinido.", "info");
   };
 
   // Helper date duration formatter
@@ -580,10 +588,10 @@ export default function App() {
             <div className="my-1 border-b border-[#1c1c32]/40" />
 
             {/* ROTATING QUOTE BANNER */}
-            <div className="quote-box min-h-[58px] flex flex-col justify-center items-center py-2 px-1 relative">
+            <div className="quote-box min-h-[82px] flex flex-col justify-center items-center py-1 select-none relative">
               <p 
                 id="quote-text" 
-                className={`text-xs italic text-[#e2e2f0] leading-relaxed transition-opacity duration-500 duration-500 max-w-[90%] ${
+                className={`text-xs italic text-[#e2e2f0] leading-relaxed transition-opacity duration-500 max-w-[92%] ${
                   quoteFade ? 'opacity-100' : 'opacity-0'
                 }`}
               >
@@ -591,7 +599,7 @@ export default function App() {
               </p>
               <span 
                 id="quote-author" 
-                className={`text-[9px] text-[#6c63ff] font-mono font-medium tracking-wider uppercase mt-1.5 transition-opacity duration-500 ${
+                className={`text-[9px] text-[#6c63ff] font-mono font-medium tracking-wider uppercase mt-1 transition-opacity duration-500 ${
                   quoteFade ? 'opacity-100' : 'opacity-0'
                 }`}
               >
@@ -830,9 +838,13 @@ export default function App() {
               <button 
                 id="btn-clear-history"
                 onClick={handleClearHistory}
-                className="w-full mt-4 py-2 bg-transparent text-[#ff6b6b]/60 hover:text-[#ff6b6b] border border-dashed border-[#1c1c32] rounded-xl text-[10px] uppercase tracking-wider font-mono cursor-pointer transition-colors focus:outline-none"
+                className={`w-full mt-4 py-2 bg-transparent text-[10px] uppercase tracking-wider font-mono cursor-pointer transition-all focus:outline-none border border-dashed rounded-xl ${
+                  confirmClear 
+                    ? 'border-[#ff6b6b] text-[#ff6b6b] bg-[#ff6b6b]/10 animate-pulse' 
+                    : 'border-[#1c1c32] text-[#ff6b6b]/60 hover:text-[#ff6b6b]'
+                }`}
               >
-                Limpar logs de hoje
+                {confirmClear ? "⚠️ Tem certeza? Clique aqui novamente para apagar todos os logs" : "Limpar logs de hoje"}
               </button>
             )}
           </div>
@@ -909,24 +921,53 @@ export default function App() {
         {/* INLINE VIEW: PRIVACY POLICIES AND TERMS OF USER DIRECT EXAMPLES */}
         <div id="tab-view-privacy" className={`view ${activeTab === 'privacy' ? 'active block' : 'hidden'}`}>
           <div className="bg-[#10101c] border border-[#1c1c32] rounded-2xl p-5 shadow-lg mb-4">
-            <h3 className="text-sm font-bold tracking-wide text-white mb-2 flex items-center gap-2">
-              Privacidade & Termos
+            <h3 className="text-sm font-bold tracking-wide text-white mb-3.5 flex items-center gap-2">
+              Privacidade & Termos de Uso (LGPD)
             </h3>
-            <div className="text-xs text-[#8b8ba8] leading-relaxed space-y-3 max-h-[290px] overflow-y-auto pr-1">
-              <p className="font-semibold text-white">Política de Privacidade:</p>
-              <p>O Relógio Foco funciona inteiramente no seu navegador de forma local (offline-first). Não coletamos, rastreamos nem armazenamos suas tarefas ou registros de tempo em servidores externos.</p>
-              
-              <p className="font-semibold text-white">Sobre os Anúncios:</p>
-              <p>Usamos anúncios simulados neste ambiente que servem apenas para simular a renderização de blocos do Google AdSense.</p>
-              
-              <p className="font-semibold text-white">Termos de Uso:</p>
-              <p>Este utilitário é disponibilizado de forma gratuita, "como está", visando aumentar seu foco e produtividade de forma lúdica.</p>
+            <div className="text-[11px] text-[#8b8ba8] leading-relaxed space-y-4 max-h-[320px] overflow-y-auto pr-1">
+              <div>
+                <h4 className="font-bold text-white uppercase text-[10px] tracking-wider mb-1 font-mono text-[#6c63ff]">
+                  1. DECLARAÇÃO DE PRIVACIDADE COERENTE À LGPD
+                </h4>
+                <p>
+                  O <strong>Relógio Foco (RelogioFoco)</strong> adota uma arquitetura estritamente <em>offline-first</em> e local. Em plena observância à <strong>Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 - LGPD)</strong>, esclarecemos que:
+                </p>
+                <ul className="list-disc pl-4 mt-1.5 space-y-1">
+                  <li><strong>Ausência de Coleta Remota:</strong> Suas tarefas inseridas, tempos cronometrados, logs de produtividade e preferências de configuração são processados e armazenados exclusivamente em seu próprio dispositivo de forma local (via <code>localStorage</code> do navegador). Não possuímos bancos de dados remotos nem servidores que interceptem esses dados.</li>
+                  <li><strong>Direitos dos Titulares (Art. 18, LGPD):</strong> Como os dados permanecem estritamente sob sua posse física no navegador, quaisquer direitos de acesso, retificação, anonimização ou exclusão definitiva de registros são exercidos de forma inteiramente autônoma por você, limpando os cookies/cache do site ou clicando em "Limpar logs de hoje".</li>
+                  <li><strong>Cookies de Terceiros e Publicidade:</strong> Eventuais veiculações de anúncios (como via redes do Google AdSense) utilizam identificadores integrados de navegação para personalização opcional do próprio Google. Recomendamos revisar as configurações de cookies do seu navegador para gerenciar suas preferências globais de publicidade.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-white uppercase text-[10px] tracking-wider mb-1 font-mono text-[#6c63ff]">
+                  2. TERMOS DE USO E LICENÇA DE SERVIÇO
+                </h4>
+                <p>
+                  Ao acessar este utilitário gratuito, você manifesta concordância plena às seguintes condições sob o ordenamento do <strong>Marco Civil da Internet (Lei nº 12.965/2014)</strong>:
+                </p>
+                <ul className="list-disc pl-4 mt-1.5 space-y-1">
+                  <li><strong>Licença de Uso:</strong> É disponibilizada ao usuário uma licença gratuita de uso pessoal, não comercial, revogável e não exclusiva deste painel ("as is" / no estado em que se encontra), sem qualquer alteração técnica ou violação sobre o repositório original.</li>
+                  <li><strong>Isenção Total de Responsabilidade Civil:</strong> O proprietário e desenvolvedores do aplicativo não assumem nenhuma responsabilidade legal, direta ou indireta, por perdas acidentais de tarefas ou logs devidas a formatações de cache, exclusões automáticas causadas pelo navegador, trocas de dispositivo, panes de energia ou atualizações de sistema.</li>
+                  <li><strong>Foco & Resultados:</strong> O utilitário constitui mecanismo facilitador de produtividade lúdica e estética. Não há garantias de ganho de desempenho individual, resultados acadêmicos ou profissionais. O usuário assume total autoria sobre seus horários de trabalho, repouso e saúde física (prevenção a lesões por esforço repetitivo - LER/DORT).</li>
+                  <li><strong>Modificações do Serviço:</strong> O aplicativo poderá passar por atualizações funcionais, otimizações ou descontinuações gerais a qualquer tempo sem prévia notificação e sem dar direito a indenizações.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-white uppercase text-[10px] tracking-wider mb-1 font-mono text-[#6c63ff]">
+                  3. LEGISLAÇÃO APLICÁVEL E FORO
+                </h4>
+                <p>
+                  Estes termos e políticas são regidos de acordo com as leis vigentes na República Federativa do Brasil. Para dirimir qualquer controvérsia judicial decorrente deste termo, elege-se prioritariamente o Foro de domicílio do proprietário da ferramenta, renunciando-se expressamente sobre qualquer outro por mais privilegiado que se apresente.
+                </p>
+              </div>
             </div>
             <button 
               onClick={() => setActiveTab('dash')}
-              className="w-full mt-4 py-2.5 bg-[#1c1c32] text-white rounded-xl text-xs font-bold hover:bg-[#1c1c32]/80 transition-colors focus:outline-none"
+              className="w-full mt-4 py-2.5 bg-[#6c63ff] hover:bg-[#584fe3] text-white rounded-xl text-xs font-bold transition-colors focus:outline-none cursor-pointer text-center"
             >
-              Voltar ao Painel
+              Ciente e de Acordo ✓ Voltar ao Painel
             </button>
           </div>
         </div>

@@ -26,6 +26,11 @@ class AmbientAudioEngine {
   private rainLFO: OscillatorNode | null = null;
   private windLFO: OscillatorNode | null = null;
 
+  // Forest Echo / Reverb Nodes
+  private forestEcho: DelayNode | null = null;
+  private forestEchoFeedback: GainNode | null = null;
+  private forestEchoGain: GainNode | null = null;
+
   // Chirp interval timer
   private chirpTimer: any = null;
 
@@ -55,6 +60,19 @@ class AmbientAudioEngine {
     this.rainGain.connect(this.analyser);
     this.forestGain.connect(this.analyser);
     this.whiteGain.connect(this.analyser);
+
+    // Set up forest reverb/echo delay line (creates a lush forest canopy feel)
+    this.forestEcho = this.ctx.createDelay(1.5);
+    this.forestEcho.delayTime.setValueAtTime(0.38, this.ctx.currentTime);
+    this.forestEchoFeedback = this.ctx.createGain();
+    this.forestEchoFeedback.gain.setValueAtTime(0.42, this.ctx.currentTime);
+    this.forestEchoGain = this.ctx.createGain();
+    this.forestEchoGain.gain.setValueAtTime(0.32, this.ctx.currentTime);
+
+    this.forestEcho.connect(this.forestEchoFeedback);
+    this.forestEchoFeedback.connect(this.forestEcho);
+    this.forestEcho.connect(this.forestEchoGain);
+    this.forestEchoGain.connect(this.analyser);
 
     // Set initial volumes
     this.rainGain.gain.setValueAtTime(0, this.ctx.currentTime);
@@ -92,22 +110,27 @@ class AmbientAudioEngine {
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
       // Brown noise integration formula
-      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      data[i] = (lastOut + (0.018 * white)) / 1.018;
       lastOut = data[i];
-      data[i] *= 3.5; // Gain compensation
+      data[i] *= 3.8; // Gain compensation
     }
 
     this.whiteSource = this.ctx.createBufferSource();
     this.whiteSource.buffer = buffer;
     this.whiteSource.loop = true;
 
-    // Connect and start
-    this.whiteSource.connect(this.whiteGain);
+    // Apply a warm lowpass filter to make it sound like a soft, cozy room hum or deep cosmic drone
+    const lowpass = this.ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.setValueAtTime(170, this.ctx.currentTime);
+
+    this.whiteSource.connect(lowpass);
+    lowpass.connect(this.whiteGain);
     this.whiteSource.start(0);
   }
 
   /**
-   * Generates Rain Sound using filtered Pink Noise + Highpass clicks
+   * Generates Rain Sound using filtered Pink Noise + Synthesized high-pass crackling drops
    */
   private buildRainSound() {
     if (!this.ctx || !this.rainGain) return;
@@ -128,19 +151,35 @@ class AmbientAudioEngine {
       b4 = 0.55000 * b4 + white * 0.5329522;
       b5 = -0.7616 * b5 - white * 0.0168980;
       data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-      data[i] *= 0.11; // Volume compensation
+      data[i] *= 0.085; // Volume compensation for comfortable base
       b6 = white * 0.115926;
+    }
+
+    // Embed rich organic water droplets directly inside the rain buffer!
+    // This creates an incredibly detailed, high-resolution custom rain soundscape
+    for (let d = 0; d < 350; d++) {
+      const pos = Math.floor(Math.random() * bufferSize);
+      const amp = 0.02 + Math.random() * 0.05;
+      const freq = 1100 + Math.random() * 900; // droplet frequency spectrum
+      const decaySecs = 0.004 + Math.random() * 0.010; // micro-decay times
+      const length = Math.floor(decaySecs * sampleRate);
+      
+      for (let s = 0; s < length && (pos + s) < bufferSize; s++) {
+        const t = s / sampleRate;
+        const env = Math.exp(-t * (5.0 / decaySecs)); // smooth rapid attenuation
+        data[pos + s] += Math.sin(2 * Math.PI * freq * t) * env * amp;
+      }
     }
 
     this.rainSource = this.ctx.createBufferSource();
     this.rainSource.buffer = buffer;
     this.rainSource.loop = true;
 
-    // Filter to make it sound like rain falling (remove muddy lows, sculpt mids)
+    // Filter to make it sound like warm cozy rain (remove mud, shape highs beautifully)
     const bandpass = this.ctx.createBiquadFilter();
     bandpass.type = 'bandpass';
-    bandpass.frequency.setValueAtTime(1200, this.ctx.currentTime);
-    bandpass.Q.setValueAtTime(0.6, this.ctx.currentTime);
+    bandpass.frequency.setValueAtTime(1300, this.ctx.currentTime);
+    bandpass.Q.setValueAtTime(0.5, this.ctx.currentTime);
 
     // Gentle micro-wind gust modulator
     const lfo = this.ctx.createOscillator();
@@ -235,6 +274,11 @@ class AmbientAudioEngine {
       // Set relative volume capped in proportion to the forest mixer level
       chirpGain.gain.setValueAtTime(this.forestTargetVol * 0.12, now);
       chirpGain.connect(this.analyser || this.ctx.destination);
+      
+      // Connect to the warm forest echo line for magnificent natural depth
+      if (this.forestEcho) {
+        chirpGain.connect(this.forestEcho);
+      }
 
       for (let p = 0; p < count; p++) {
         const osc = this.ctx.createOscillator();
@@ -248,13 +292,14 @@ class AmbientAudioEngine {
 
         osc.type = 'sine';
         // Elegant downwards swept frequency envelope (classic bird sound)
-        const baseFreq = 3800 + Math.random() * 600;
+        // Softened pitch range (2300Hz-2900Hz) to prevent ear fatigues on headphones
+        const baseFreq = 2300 + Math.random() * 500;
         osc.frequency.setValueAtTime(baseFreq, pulseStart);
-        osc.frequency.exponentialRampToValueAtTime(1400 + Math.random() * 200, pulseStart + duration);
+        osc.frequency.exponentialRampToValueAtTime(1000 + Math.random() * 200, pulseStart + duration);
 
         // Smooth volume envelope to prevent sound pop clicks
         envelope.gain.setValueAtTime(0.0001, pulseStart);
-        envelope.gain.linearRampToValueAtTime(0.4 + Math.random() * 0.4, pulseStart + 0.01);
+        envelope.gain.linearRampToValueAtTime(0.35 + Math.random() * 0.35, pulseStart + 0.01);
         envelope.gain.exponentialRampToValueAtTime(0.0001, pulseStart + duration);
 
         osc.start(pulseStart);

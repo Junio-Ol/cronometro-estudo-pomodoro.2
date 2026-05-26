@@ -1,8 +1,40 @@
 import { useEffect, useRef } from 'react';
 import { ambientAudio } from '../ambientAudio';
 
-export function AudioVisualizer() {
+// Theme-specific color palettes for a highly integrated look
+const themeColors: Record<string, {
+  wave1: { start: string; mid: string; end: string };
+  wave2: { start: string; mid: string; end: string };
+  wave3: { start: string; mid: string; end: string };
+}> = {
+  violet: {
+    wave1: { start: '#6c63ff', mid: '#0ea5e9', end: '#06b6d4' }, // violet - blue - cyan
+    wave2: { start: '#8b5cf6', mid: '#ec4899', end: '#a78bfa' }, // purple - pink - violet
+    wave3: { start: '#3b82f6', mid: '#a78bfa', end: '#22d3ee' }  // blue - purple - lightcyan
+  },
+  emerald: {
+    wave1: { start: '#10b981', mid: '#14b8a6', end: '#a3e635' }, // emerald - teal - lime
+    wave2: { start: '#059669', mid: '#10b981', end: '#34d399' }, // deep green - emerald - mint
+    wave3: { start: '#84cc16', mid: '#10b981', end: '#06b6d4' }  // lime - emerald - cyan
+  },
+  ocean: {
+    wave1: { start: '#0ea5e9', mid: '#3b82f6', end: '#6366f1' }, // sky blue - cool blue - indigo
+    wave2: { start: '#06b6d4', mid: '#0ea5e9', end: '#a78bfa' }, // cyan - sky - lavender
+    wave3: { start: '#6366f1', mid: '#0ea5e9', end: '#22d3ee' }  // indigo - sky - light cyan
+  },
+  amber: {
+    wave1: { start: '#f59e0b', mid: '#f97316', end: '#ef4444' }, // amber - orange - red
+    wave2: { start: '#d97706', mid: '#f59e0b', end: '#ec4899' }, // dark amber - yellow - pink
+    wave3: { start: '#f43f5e', mid: '#fef08a', end: '#ef4444' }  // rose - yellow - red
+  }
+};
+
+export function AudioVisualizer({ theme = 'violet' }: { theme?: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const themeRef = useRef(theme);
+
+  // Keep the theme ref synchronized dynamically to avoid re-initializing the rendering effect
+  themeRef.current = theme;
 
   useEffect(() => {
     let animationFrameId: number;
@@ -31,101 +63,147 @@ export function AudioVisualizer() {
       resizeObserver.observe(canvas.parentElement);
     }
 
-    const checkAndDraw = () => {
+    // Phase counters for smooth wave movement over time
+    let phase1 = 0;
+    let phase2 = 1.5;
+    let phase3 = 3.0;
+
+    // Direct local state variables to guarantee high-frequency smooth rendering
+    let smoothedLows = 0.08;
+    let smoothedMids = 0.06;
+    let smoothedHighs = 0.04;
+
+    const renderWaves = () => {
       const analyser = ambientAudio.getAnalyser();
-      if (!canvas) return;
+      if (!canvas || !ctx) return;
       
-      if (!analyser) {
-        // Draw subtle idle lines
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.beginPath();
-        ctx.moveTo(0, canvas.height / 2);
-        
-        // elegant sine-wave like idle line
-        const time = Date.now() * 0.003;
-        for (let ix = 0; ix < canvas.width; ix++) {
-          const iy = canvas.height / 2 + Math.sin(ix * 0.05 + time) * 3;
-          ctx.lineTo(ix, iy);
+      const width = canvas.width;
+      const height = canvas.height;
+      const centerY = height / 2;
+
+      // Access theme colors dynamically from the ref to ensure uninterrupted flow
+      const currentColors = themeColors[themeRef.current] || themeColors.violet;
+
+      // Soft trail background fill instead of instant clearRect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+      ctx.fillRect(0, 0, width, height);
+
+      if (analyser) {
+        // Dynamic reading from live Audio API buffer
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyser.getByteFrequencyData(dataArray);
+
+        // Map energy bins (lows, mids, highs) with physical accuracy
+        const offsetLows = Math.floor(bufferLength * 0.15); // first 15%
+        const offsetMids = Math.floor(bufferLength * 0.45); // middle 30%
+
+        let lowSum = 0;
+        let midSum = 0;
+        let highSum = 0;
+
+        for (let i = 0; i < offsetLows; i++) {
+          lowSum += dataArray[i];
         }
-        ctx.strokeStyle = '#1c1c32';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        ctx.fillStyle = '#52526e';
-        ctx.font = '9px "Space Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('AGUARDANDO AUDIO...', canvas.width / 2, canvas.height / 2 + 18);
-
-        animationFrameId = requestAnimationFrame(checkAndDraw);
-        return;
-      }
-
-      // Analyser is active! Get standard frequency data
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      analyser.getByteFrequencyData(dataArray);
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // We only visualize up to about 80% of frequencies to ignore high pitch noise
-      const activeBins = Math.floor(bufferLength * 0.7);
-      const barWidth = canvas.width / activeBins;
-      let barHeight;
-      let x = 0;
-
-      // Create highly polished theme-specific linear gradient
-      const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      gradient.addColorStop(0, '#6c63ff'); // Accent violet
-      gradient.addColorStop(0.5, '#50e3c2'); // Cool teal
-      gradient.addColorStop(1, '#3dffa0'); // Neon green
-
-      for (let i = 0; i < activeBins; i++) {
-        barHeight = dataArray[i];
-
-        // scale frequency values into canvas size
-        const scaledHeight = (barHeight / 255) * canvas.height * 0.85;
-
-        ctx.fillStyle = gradient;
-        
-        // Draw rounded bars (curved corner bars for top)
-        ctx.beginPath();
-        const drawX = x;
-        const drawY = canvas.height - Math.max(2, scaledHeight);
-        const drawW = Math.max(1, barWidth - 1.5);
-        const drawH = Math.max(2, scaledHeight);
-        
-        if (ctx.roundRect) {
-          ctx.roundRect(drawX, drawY, drawW, drawH, [1, 1, 0, 0]);
-          ctx.fill();
-        } else {
-          ctx.fillRect(drawX, drawY, drawW, drawH);
+        for (let i = offsetLows; i < offsetMids; i++) {
+          midSum += dataArray[i];
+        }
+        for (let i = offsetMids; i < bufferLength; i++) {
+          highSum += dataArray[i];
         }
 
-        x += barWidth;
+        const rawLows = lowSum / (offsetLows || 1) / 255;
+        const rawMids = midSum / ((offsetMids - offsetLows) || 1) / 255;
+        const rawHighs = highSum / ((bufferLength - offsetMids) || 1) / 255;
+
+        // Ultra smooth interpolate transition (no visual stuttering)
+        smoothedLows += (rawLows - smoothedLows) * 0.12;
+        smoothedMids += (rawMids - smoothedMids) * 0.12;
+        smoothedHighs += (rawHighs - smoothedHighs) * 0.12;
+      } else {
+        // Smooth ambient idle breathe mode when audio is suspended or offline
+        const timeFactor = Date.now() * 0.001;
+        const breatheLows = 0.08 + Math.abs(Math.sin(timeFactor)) * 0.06;
+        const breatheMids = 0.05 + Math.abs(Math.cos(timeFactor * 1.3)) * 0.04;
+        const breatheHighs = 0.03 + Math.abs(Math.sin(timeFactor * 1.7)) * 0.03;
+
+        smoothedLows += (breatheLows - smoothedLows) * 0.05;
+        smoothedMids += (breatheMids - smoothedMids) * 0.05;
+        smoothedHighs += (breatheHighs - smoothedHighs) * 0.05;
       }
 
-      // Continuous frequency line tracker overlay
-      ctx.beginPath();
-      x = 0;
-      for (let i = 0; i < activeBins; i++) {
-        barHeight = dataArray[i];
-        const scaledHeight = (barHeight / 255) * canvas.height * 0.85;
-        const y = canvas.height - Math.max(2, scaledHeight);
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-        x += barWidth;
-      }
-      ctx.strokeStyle = 'rgba(61, 255, 160, 0.2)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      // Increment phases independently to generate intersecting ribbons
+      phase1 += 0.03 + smoothedLows * 0.04;  // moves in positive direction
+      phase2 -= 0.04 + smoothedMids * 0.05;  // moves in reverse
+      phase3 += 0.05 + smoothedHighs * 0.06; // detail wave vibrates slightly faster
 
-      animationFrameId = requestAnimationFrame(checkAndDraw);
+      // Wave configurations: different bands dictate different wave scales
+      // 1. Primary Wave (Bass / Lows)
+      const maxAmp1 = height * 0.45;
+      const amp1 = Math.max(3, smoothedLows * maxAmp1);
+      drawSineWave(ctx, width, centerY, amp1, 0.007, phase1, currentColors.wave1, 2.5, 0.9);
+
+      // 2. Secondary Wave (Mids)
+      const maxAmp2 = height * 0.35;
+      const amp2 = Math.max(2, smoothedMids * maxAmp2);
+      drawSineWave(ctx, width, centerY, amp2, 0.012, phase2, currentColors.wave2, 1.8, 0.65);
+
+      // 3. Tertiary Detail Wave (Treble / Highs)
+      const maxAmp3 = height * 0.22;
+      const amp3 = Math.max(1, smoothedHighs * maxAmp3);
+      drawSineWave(ctx, width, centerY, amp3, 0.022, phase3, currentColors.wave3, 1.0, 0.45);
+
+      animationFrameId = requestAnimationFrame(renderWaves);
     };
 
-    checkAndDraw();
+    /**
+     * Draws a single smooth sinesoid line with tight boundaries at both sides
+     * using a beautiful bell-curve windowing function (envelope).
+     */
+    const drawSineWave = (
+      cContext: CanvasRenderingContext2D,
+      w: number,
+      cY: number,
+      amplitude: number,
+      frequency: number,
+      phase: number,
+      colors: { start: string; mid: string; end: string },
+      lineWidth: number,
+      opacity: number
+    ) => {
+      cContext.beginPath();
+
+      for (let x = 0; x <= w; x += 1.5) {
+        // Bell shape envelope to taper off perfectly at both leftmost and rightmost edges (no sharp endings)
+        const percent = x / w;
+        const envelope = Math.pow(Math.sin(Math.PI * percent), 1.6);
+        
+        // Compute standard sine displacement
+        const y = cY + Math.sin(x * frequency + phase) * amplitude * envelope;
+
+        if (x === 0) {
+          cContext.moveTo(x, y);
+        } else {
+          cContext.lineTo(x, y);
+        }
+      }
+
+      // Draw with an elegant linear neon gradient
+      const gradient = cContext.createLinearGradient(0, 0, w, 0);
+      gradient.addColorStop(0, colors.start);
+      gradient.addColorStop(0.5, colors.mid);
+      gradient.addColorStop(1, colors.end);
+
+      cContext.strokeStyle = gradient;
+      cContext.lineWidth = lineWidth;
+      cContext.globalAlpha = opacity;
+      cContext.stroke();
+      
+      // Reset alpha for next calls
+      cContext.globalAlpha = 1.0;
+    };
+
+    renderWaves();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
@@ -144,7 +222,7 @@ export function AudioVisualizer() {
           <span className="text-[8px] font-mono text-[#3dfa9f]/80 tracking-tight">WEB AUDIO LIVE</span>
         </div>
       </div>
-      <div className="w-full bg-black/40 rounded-xl p-2 flex justify-center items-center">
+      <div className="w-full bg-black/40 rounded-xl p-2 flex justify-center items-center overflow-hidden">
         <canvas ref={canvasRef} className="block w-full" style={{ height: '70px' }} />
       </div>
     </div>

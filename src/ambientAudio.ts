@@ -1,6 +1,6 @@
 /**
  * High-performance, fully client-side ambient sound synthesizer using Web Audio API.
- * Eliminates the need for external server assets or fragile media links.
+ * Synthesizes highly realistic nature soundscapes without external asset load delays.
  */
 
 class AmbientAudioEngine {
@@ -12,7 +12,10 @@ class AmbientAudioEngine {
   private forestTargetVol = 0;
   private whiteTargetVol = 0;
 
-  // Audio nodes
+  // Master Gain to allow global gentle fade in/out
+  private masterGain: GainNode | null = null;
+
+  // Channel Gains
   private rainGain: GainNode | null = null;
   private forestGain: GainNode | null = null;
   private whiteGain: GainNode | null = null;
@@ -22,26 +25,29 @@ class AmbientAudioEngine {
   private forestWindSource: AudioBufferSourceNode | null = null;
   private whiteSource: AudioBufferSourceNode | null = null;
 
-  // Modulator LFOs (for natural variations)
-  private rainLFO: OscillatorNode | null = null;
-  private windLFO: OscillatorNode | null = null;
+  // Modulator LFOs
+  private oceanWavesLFO: OscillatorNode | null = null;
+  private windGustsLFO: OscillatorNode | null = null;
+  private cricketLFO: OscillatorNode | null = null;
 
-  // Forest Echo / Reverb Nodes
+  // Forest Echo / Delay Lines
   private forestEcho: DelayNode | null = null;
   private forestEchoFeedback: GainNode | null = null;
   private forestEchoGain: GainNode | null = null;
 
-  // Chirp interval timer
+  // Periodic Synthesized Nature Events
   private chirpTimer: any = null;
+  private cricketGain: GainNode | null = null;
+  private cricketOsc: OscillatorNode | null = null;
+  private thunderTimer: any = null;
 
   constructor() {
-    // Audio context is lazy initialized on user interaction
+    // Lazy initialized on user action
   }
 
   private initCtx() {
     if (this.ctx) return;
     
-    // Create AudioContext (handling standard & legacy prefix browsers)
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
 
@@ -49,10 +55,16 @@ class AmbientAudioEngine {
 
     // Create Analyser
     this.analyser = this.ctx.createAnalyser();
-    this.analyser.fftSize = 128; // high performance, crisp slice of frequency spectrum
-    this.analyser.connect(this.ctx.destination);
+    this.analyser.fftSize = 128; // lightweight, fast frequency visualizer response
 
-    // Create central nodes
+    // Create Master Gain node for elegant fade-ins and fade-outs
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.setValueAtTime(1, this.ctx.currentTime);
+    this.masterGain.connect(this.ctx.destination);
+    
+    this.analyser.connect(this.masterGain);
+
+    // Create channel gain nodes
     this.rainGain = this.ctx.createGain();
     this.forestGain = this.ctx.createGain();
     this.whiteGain = this.ctx.createGain();
@@ -61,31 +73,33 @@ class AmbientAudioEngine {
     this.forestGain.connect(this.analyser);
     this.whiteGain.connect(this.analyser);
 
-    // Set up forest reverb/echo delay line (creates a lush forest canopy feel)
+    // Set up forest reverb/echo delay line (provides spacious depth in dense foliage)
     this.forestEcho = this.ctx.createDelay(1.5);
-    this.forestEcho.delayTime.setValueAtTime(0.38, this.ctx.currentTime);
+    this.forestEcho.delayTime.setValueAtTime(0.42, this.ctx.currentTime);
     this.forestEchoFeedback = this.ctx.createGain();
-    this.forestEchoFeedback.gain.setValueAtTime(0.42, this.ctx.currentTime);
+    this.forestEchoFeedback.gain.setValueAtTime(0.45, this.ctx.currentTime);
     this.forestEchoGain = this.ctx.createGain();
-    this.forestEchoGain.gain.setValueAtTime(0.32, this.ctx.currentTime);
+    this.forestEchoGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
 
     this.forestEcho.connect(this.forestEchoFeedback);
     this.forestEchoFeedback.connect(this.forestEcho);
     this.forestEcho.connect(this.forestEchoGain);
     this.forestEchoGain.connect(this.analyser);
 
-    // Set initial volumes
+    // Set initial volume gains
     this.rainGain.gain.setValueAtTime(0, this.ctx.currentTime);
     this.forestGain.gain.setValueAtTime(0, this.ctx.currentTime);
     this.whiteGain.gain.setValueAtTime(0, this.ctx.currentTime);
 
-    // Build generators
-    this.buildWhiteNoise();
-    this.buildRainSound();
-    this.buildForestSound();
+    // Build advanced soundscapes
+    this.buildOceanWavesNoise();
+    this.buildUltraRealisticRain();
+    this.buildSoftWindAndForest();
+    this.buildGrassCrickets();
 
-    // Start bird chirp loop for forest
+    // Start random atmospheric event generators
     this.startChirpLoop();
+    this.startThunderLoop();
   }
 
   private ensureRunning() {
@@ -96,51 +110,67 @@ class AmbientAudioEngine {
   }
 
   /**
-   * Generates Brown Noise (softer and deeper than White Noise, excellent for deep focus)
+   * Generates highly organic Brown noise coupled with a resonant cutoff lowpass filter
+   * modulated by an ultra-slow LFO (0.05Hz) to sound exactly like rolling ocean tidewaters.
    */
-  private buildWhiteNoise() {
+  private buildOceanWavesNoise() {
     if (!this.ctx || !this.whiteGain) return;
 
     const sampleRate = this.ctx.sampleRate;
-    const bufferSize = 10 * sampleRate; // 10s loop
+    const bufferSize = 12 * sampleRate; // 12-second loop
     const buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
 
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
-      const white = Math.random() * 2 - 1;
-      // Brown noise integration formula
-      data[i] = (lastOut + (0.018 * white)) / 1.018;
-      lastOut = data[i];
-      data[i] *= 3.8; // Gain compensation
+       const white = Math.random() * 2 - 1;
+       // Deep brown noise filter
+       data[i] = (lastOut + (0.02 * white)) / 1.02;
+       lastOut = data[i];
+       data[i] *= 12.0; // boosted raw waves buffer gain to ensure deep rich rumble
     }
 
     this.whiteSource = this.ctx.createBufferSource();
     this.whiteSource.buffer = buffer;
     this.whiteSource.loop = true;
 
-    // Apply a warm lowpass filter to make it sound like a soft, cozy room hum or deep cosmic drone
-    const lowpass = this.ctx.createBiquadFilter();
-    lowpass.type = 'lowpass';
-    lowpass.frequency.setValueAtTime(170, this.ctx.currentTime);
+    // Resonant filter for the "hiss" and "crash" sweeps of ocean surf
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(450, this.ctx.currentTime); // Raised base frequency to prevent absolute muting at low LFO limits
+    filter.Q.setValueAtTime(1.5, this.ctx.currentTime);
 
-    this.whiteSource.connect(lowpass);
-    lowpass.connect(this.whiteGain);
+    // Slow wave LFO modulator (every 18 seconds)
+    this.oceanWavesLFO = this.ctx.createOscillator();
+    this.oceanWavesLFO.type = 'sine';
+    this.oceanWavesLFO.frequency.setValueAtTime(0.055, this.ctx.currentTime);
+
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.setValueAtTime(300, this.ctx.currentTime); // Sweet sweep range of 150Hz to 750Hz (deep and always beautifully audible)
+
+    this.oceanWavesLFO.connect(lfoGain);
+    lfoGain.connect(filter.frequency);
+
+    this.whiteSource.connect(filter);
+    filter.connect(this.whiteGain);
+
     this.whiteSource.start(0);
+    this.oceanWavesLFO.start(0);
   }
 
   /**
-   * Generates Rain Sound using filtered Pink Noise + Synthesized high-pass crackling drops
+   * Generates ultra-realistic rain sound using recursive pink noise bases
+   * layered with hundreds of micro-droplets (highly high-passed water splatters with random decay)
    */
-  private buildRainSound() {
+  private buildUltraRealisticRain() {
     if (!this.ctx || !this.rainGain) return;
 
     const sampleRate = this.ctx.sampleRate;
-    const bufferSize = 8 * sampleRate;
+    const bufferSize = 10 * sampleRate;
     const buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
 
-    // Pink noise generator (Voss-McCartney algorithm)
+    // Pink noise base for standard heavy background shower
     let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
@@ -151,23 +181,24 @@ class AmbientAudioEngine {
       b4 = 0.55000 * b4 + white * 0.5329522;
       b5 = -0.7616 * b5 - white * 0.0168980;
       data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-      data[i] *= 0.085; // Volume compensation for comfortable base
+      data[i] *= 0.65; // significantly boosted rain base gain (up from 0.16)
       b6 = white * 0.115926;
     }
 
-    // Embed rich organic water droplets directly inside the rain buffer!
-    // This creates an incredibly detailed, high-resolution custom rain soundscape
-    for (let d = 0; d < 350; d++) {
-      const pos = Math.floor(Math.random() * bufferSize);
-      const amp = 0.02 + Math.random() * 0.05;
-      const freq = 1100 + Math.random() * 900; // droplet frequency spectrum
-      const decaySecs = 0.004 + Math.random() * 0.010; // micro-decay times
-      const length = Math.floor(decaySecs * sampleRate);
-      
-      for (let s = 0; s < length && (pos + s) < bufferSize; s++) {
-        const t = s / sampleRate;
-        const env = Math.exp(-t * (5.0 / decaySecs)); // smooth rapid attenuation
-        data[pos + s] += Math.sin(2 * Math.PI * freq * t) * env * amp;
+    // Embed individual realistic high-clarity water droplet splatters
+    for (let drop = 0; drop < 650; drop++) {
+      const startPos = Math.floor(Math.random() * bufferSize);
+      const intensity = 0.04 + Math.random() * 0.12;
+      const baseFreq = 950 + Math.random() * 1100;
+      const decayTime = 0.005 + Math.random() * 0.012; // short damp ticks
+      const length = Math.floor(decayTime * sampleRate);
+
+      for (let j = 0; j < length && (startPos + j) < bufferSize; j++) {
+        const time = j / sampleRate;
+        const envelope = Math.exp(-time * (6.0 / decayTime));
+        // A sweeping resonant pitch drop to simulate real raindrop elastic strike
+        const sweepFreq = baseFreq * (1.2 - (time / decayTime) * 0.5);
+        data[startPos + j] += Math.sin(2 * Math.PI * sweepFreq * time) * envelope * intensity;
       }
     }
 
@@ -175,150 +206,281 @@ class AmbientAudioEngine {
     this.rainSource.buffer = buffer;
     this.rainSource.loop = true;
 
-    // Filter to make it sound like warm cozy rain (remove mud, shape highs beautifully)
-    const bandpass = this.ctx.createBiquadFilter();
-    bandpass.type = 'bandpass';
-    bandpass.frequency.setValueAtTime(1300, this.ctx.currentTime);
-    bandpass.Q.setValueAtTime(0.5, this.ctx.currentTime);
+    // Filter to roll off mud/rumble and boost atmospheric rain hiss
+    const rainFilter = this.ctx.createBiquadFilter();
+    rainFilter.type = 'peaking'; // Using peaking filter for a fuller, crisper water sound compared to bandpass
+    rainFilter.frequency.setValueAtTime(1600, this.ctx.currentTime);
+    rainFilter.Q.setValueAtTime(0.35, this.ctx.currentTime);
+    rainFilter.gain.setValueAtTime(1.5, this.ctx.currentTime);
 
-    // Gentle micro-wind gust modulator
-    const lfo = this.ctx.createOscillator();
-    const lfoGain = this.ctx.createGain();
-    lfo.type = 'sine';
-    lfo.frequency.setValueAtTime(0.08, this.ctx.currentTime); // very slow 12s cycle
-    lfoGain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+    this.rainSource.connect(rainFilter);
+    rainFilter.connect(this.rainGain);
 
-    const filterModGain = this.ctx.createGain();
-    filterModGain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-
-    // Chain nodes
-    this.rainSource.connect(bandpass);
-    bandpass.connect(this.rainGain);
-    
     this.rainSource.start(0);
   }
 
   /**
-   * Generates wind rustle for forest sound using randomized low-pass brown noise wind
+   * Generates whispering forest winds utilizing highly lowpassed brown noise,
+   * modulated back and forth to simulate rustling tree crowns.
    */
-  private buildForestSound() {
+  private buildSoftWindAndForest() {
     if (!this.ctx || !this.forestGain) return;
 
     const sampleRate = this.ctx.sampleRate;
-    const bufferSize = 12 * sampleRate;
+    const bufferSize = 14 * sampleRate;
     const buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
 
     let lastOut = 0.0;
     for (let i = 0; i < bufferSize; i++) {
       const white = Math.random() * 2 - 1;
-      data[i] = (lastOut + (0.015 * white)) / 1.015;
+      data[i] = (lastOut + (0.012 * white)) / 1.012;
       lastOut = data[i];
-      data[i] *= 4.0;
+      data[i] *= 9.5; // Boosted output of synthesized wind
     }
 
     this.forestWindSource = this.ctx.createBufferSource();
     this.forestWindSource.buffer = buffer;
     this.forestWindSource.loop = true;
 
-    const lowpass = this.ctx.createBiquadFilter();
-    lowpass.type = 'lowpass';
-    lowpass.frequency.setValueAtTime(320, this.ctx.currentTime); // deep whispering wind rustle
+    const windFilter = this.ctx.createBiquadFilter();
+    windFilter.type = 'lowpass';
+    windFilter.frequency.setValueAtTime(480, this.ctx.currentTime); // Let more mid-range detailing pass through
+    windFilter.Q.setValueAtTime(1.0, this.ctx.currentTime);
 
-    // LFO to modulate wind gusts
-    this.windLFO = this.ctx.createOscillator();
-    const lfoGain = this.ctx.createGain();
-    this.windLFO.type = 'sine';
-    this.windLFO.frequency.setValueAtTime(0.04, this.ctx.currentTime); // 25s wind rise/fall
-    lfoGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+    // Gentle wind windGustsLFO (every 22 seconds)
+    this.windGustsLFO = this.ctx.createOscillator();
+    this.windGustsLFO.type = 'sine';
+    this.windGustsLFO.frequency.setValueAtTime(0.045, this.ctx.currentTime);
 
-    const windGainNode = this.ctx.createGain();
-    windGainNode.gain.setValueAtTime(0.5, this.ctx.currentTime);
+    const gustsGain = this.ctx.createGain();
+    gustsGain.gain.setValueAtTime(0.40, this.ctx.currentTime);
 
-    // Connect wind
-    this.forestWindSource.connect(lowpass);
-    lowpass.connect(windGainNode);
-    windGainNode.connect(this.forestGain);
+    const activeWindGain = this.ctx.createGain();
+    activeWindGain.gain.setValueAtTime(0.95, this.ctx.currentTime); // elevated base wind gain
 
-    this.windLFO.connect(lfoGain);
-    lfoGain.connect(windGainNode.gain);
+    this.forestWindSource.connect(windFilter);
+    windFilter.connect(activeWindGain);
+    activeWindGain.connect(this.forestGain);
+
+    // Couple windGustsLFO to volume amplitude to mimic real gusts of wind blowing on trees
+    this.windGustsLFO.connect(gustsGain);
+    gustsGain.connect(activeWindGain.gain);
 
     this.forestWindSource.start(0);
-    this.windLFO.start(0);
+    this.windGustsLFO.start(0);
   }
 
   /**
-   * Periodically schedules high pitched bird chirps to create a living forest atmosphere
+   * Synthesizes summer night crickets. Uses a high-frequency sine oscillator (4300Hz),
+   * amplitude-modulated (on/off) rapidly at 12Hz by an LFO to create cricket chirrups.
+   */
+  private buildGrassCrickets() {
+    if (!this.ctx || !this.forestGain) return;
+
+    // Create a rhythmic amplitude modulated cricket sound
+    this.cricketOsc = this.ctx.createOscillator();
+    this.cricketOsc.type = 'sine';
+    this.cricketOsc.frequency.setValueAtTime(4250, this.ctx.currentTime);
+
+    this.cricketLFO = this.ctx.createOscillator();
+    this.cricketLFO.type = 'square';
+    this.cricketLFO.frequency.setValueAtTime(11.5, this.ctx.currentTime); // Rapid 11.5Hz shutter
+
+    const lfoAmGain = this.ctx.createGain();
+    lfoAmGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+
+    this.cricketGain = this.ctx.createGain();
+    this.cricketGain.gain.setValueAtTime(0.0, this.ctx.currentTime); // controlled by forest fader level
+
+    // Connect oscillators
+    this.cricketOsc.connect(this.cricketGain);
+    
+    // Wire up LFO to act as cricket chirrup AM modulator
+    const crktAmGain = this.ctx.createGain();
+    crktAmGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+    this.cricketLFO.connect(crktAmGain);
+    
+    // Connect to target channel
+    this.cricketGain.connect(this.forestGain);
+
+    // Start oscillators
+    this.cricketOsc.start(0);
+    this.cricketLFO.start(0);
+  }
+
+  /**
+   * Sings highly melodic, non-fatiguing birds of many pitches at slow natural intervals.
    */
   private startChirpLoop() {
     const trigger = () => {
-      // Only chirp if forest volume is active and audio context is playing
       if (this.forestTargetVol > 0.02 && this.ctx && this.ctx.state === 'running' && this.forestGain) {
-        this.triggerBirdChirp();
+        this.triggerRealBirdMelody();
       }
-      // Re-schedule randomly between 4s and 9s
-      this.chirpTimer = setTimeout(trigger, 4000 + Math.random() * 5000);
+      // Re-schedule randomly between 7 and 13 seconds for a relaxed feel
+      this.chirpTimer = setTimeout(trigger, 7000 + Math.random() * 6000);
     };
-    this.chirpTimer = setTimeout(trigger, 3000);
+    this.chirpTimer = setTimeout(trigger, 5000);
   }
 
-  private triggerBirdChirp() {
+  private triggerRealBirdMelody() {
     if (!this.ctx || !this.forestGain) return;
 
     try {
       const now = this.ctx.currentTime;
-      const count = 2 + Math.floor(Math.random() * 2); // 2 or 3 rapid chirp pulses
+      const type = Math.floor(Math.random() * 3); // 3 different melodic patterns
 
-      // Create a local gain node for the chirp channel
-      const chirpGain = this.ctx.createGain();
-      // Set relative volume capped in proportion to the forest mixer level
-      chirpGain.gain.setValueAtTime(this.forestTargetVol * 0.12, now);
-      chirpGain.connect(this.analyser || this.ctx.destination);
+      const birdGain = this.ctx.createGain();
+      // Cap chirp volume dynamically proportional to mixer
+      birdGain.gain.setValueAtTime(this.forestTargetVol * 0.15, now);
+      birdGain.connect(this.analyser || this.ctx.destination);
       
-      // Connect to the warm forest echo line for magnificent natural depth
       if (this.forestEcho) {
-        chirpGain.connect(this.forestEcho);
+        birdGain.connect(this.forestEcho); // Send to reverb
       }
 
-      for (let p = 0; p < count; p++) {
+      if (type === 0) {
+        // Melodic twin swipe "chirp-chirp"
+        const base = 2100 + Math.random() * 300;
+        for (let i = 0; i < 2; i++) {
+          const start = now + i * 0.22;
+          const dur = 0.08;
+          const osc = this.ctx.createOscillator();
+          const amp = this.ctx.createGain();
+
+          osc.connect(amp);
+          amp.connect(birdGain);
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(base, start);
+          osc.frequency.exponentialRampToValueAtTime(base - 600, start + dur);
+
+          amp.gain.setValueAtTime(0.0001, start);
+          amp.gain.linearRampToValueAtTime(0.4, start + 0.01);
+          amp.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+          osc.start(start);
+          osc.stop(start + dur + 0.02);
+        }
+      } else if (type === 1) {
+        // Soft whistling "tu-whit tu-whoo" slide
+        const startSec = now;
         const osc = this.ctx.createOscillator();
-        const envelope = this.ctx.createGain();
+        const amp = this.ctx.createGain();
 
-        osc.connect(envelope);
-        envelope.connect(chirpGain);
-
-        const pulseStart = now + p * 0.16;
-        const duration = 0.05 + Math.random() * 0.04;
+        osc.connect(amp);
+        amp.connect(birdGain);
 
         osc.type = 'sine';
-        // Elegant downwards swept frequency envelope (classic bird sound)
-        // Softened pitch range (2300Hz-2900Hz) to prevent ear fatigues on headphones
-        const baseFreq = 2300 + Math.random() * 500;
-        osc.frequency.setValueAtTime(baseFreq, pulseStart);
-        osc.frequency.exponentialRampToValueAtTime(1000 + Math.random() * 200, pulseStart + duration);
+        osc.frequency.setValueAtTime(1400, startSec);
+        osc.frequency.linearRampToValueAtTime(1750, startSec + 0.12);
+        osc.frequency.exponentialRampToValueAtTime(1100, startSec + 0.35);
 
-        // Smooth volume envelope to prevent sound pop clicks
-        envelope.gain.setValueAtTime(0.0001, pulseStart);
-        envelope.gain.linearRampToValueAtTime(0.35 + Math.random() * 0.35, pulseStart + 0.01);
-        envelope.gain.exponentialRampToValueAtTime(0.0001, pulseStart + duration);
+        amp.gain.setValueAtTime(0.0001, startSec);
+        amp.gain.linearRampToValueAtTime(0.3, startSec + 0.08);
+        amp.gain.exponentialRampToValueAtTime(0.0001, startSec + 0.4);
 
-        osc.start(pulseStart);
-        osc.stop(pulseStart + duration + 0.01);
+        osc.start(startSec);
+        osc.stop(startSec + 0.45);
+      } else {
+        // High-pitched rapid triple pip "pit-pit-pit"
+        const pitch = 2700 + Math.random() * 400;
+        for (let i = 0; i < 3; i++) {
+          const start = now + i * 0.12;
+          const osc = this.ctx.createOscillator();
+          const amp = this.ctx.createGain();
+
+          osc.connect(amp);
+          amp.connect(birdGain);
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(pitch, start);
+          amp.gain.setValueAtTime(0.0001, start);
+          amp.gain.linearRampToValueAtTime(0.2, start + 0.01);
+          amp.gain.exponentialRampToValueAtTime(0.0001, start + 0.05);
+
+          osc.start(start);
+          osc.stop(start + 0.06);
+        }
       }
     } catch (e) {
-      console.warn("Chirp synth trigger error:", e);
+      console.warn("Melodic chirp render failed:", e);
     }
   }
 
   /**
-   * Volume Controls (Value expected 0 to 100)
+   * Generates low, atmospheric rolling thunder rumbles
+   * layered with transient cracking pops to sound completely natural and immersive.
+   */
+  private startThunderLoop() {
+    const trigger = () => {
+      if (this.rainTargetVol > 0.20 && this.ctx && this.ctx.state === 'running' && this.rainGain) {
+        this.triggerCozyThunder();
+      }
+      // Check for thunder every 25s to 45s
+      this.thunderTimer = setTimeout(trigger, 25000 + Math.random() * 20000);
+    };
+    this.thunderTimer = setTimeout(trigger, 15000);
+  }
+
+  private triggerCozyThunder() {
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      
+      // Let's build a dedicated rumble node!
+      const rumbleOsc = this.ctx.createOscillator();
+      const rumbleGain = this.ctx.createGain();
+      const rumbleFilter = this.ctx.createBiquadFilter();
+
+      rumbleFilter.type = 'lowpass';
+      rumbleFilter.frequency.setValueAtTime(55, now); // deep, vibrating frequencies
+      rumbleFilter.Q.setValueAtTime(2.0, now);
+
+      rumbleOsc.connect(rumbleFilter);
+      rumbleFilter.connect(rumbleGain);
+      rumbleGain.connect(this.analyser || this.ctx.destination);
+
+      rumbleOsc.type = 'sawtooth'; // rich harmonics to filter out
+      rumbleOsc.frequency.setValueAtTime(32, now);
+      rumbleOsc.frequency.linearRampToValueAtTime(22, now + 4.0); // pitch dropping off
+
+      // Dynamic rumble volume envelope
+      rumbleGain.gain.setValueAtTime(0.0001, now);
+      rumbleGain.gain.linearRampToValueAtTime(this.rainTargetVol * 0.28, now + 1.2); // slowly swells
+      rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + 5.0); // fades away
+
+      rumbleOsc.start(now);
+      rumbleOsc.stop(now + 5.2);
+
+    } catch (e) {
+      console.warn("Thunder synthesize error:", e);
+    }
+  }
+
+  /**
+   * Smoothly fades the master output volume in or out.
+   * Eliminates the sudden shock of switching tabs or resuming.
+   */
+  public fadeMasterVolume(target: number, duration: number) {
+    this.ensureRunning();
+    if (this.ctx && this.masterGain) {
+      this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, duration / 3);
+    }
+  }
+
+  /**
+   * Individual Slider Controls (expected value: 0 to 100)
    */
   public updateRain(vol: number) {
     this.ensureRunning();
     this.rainTargetVol = Math.max(0, Math.min(100, vol)) / 100;
     if (this.ctx && this.rainGain) {
-      // Smooth volume ramp to avoid clicks
-      this.rainGain.gain.setTargetAtTime(this.rainTargetVol, this.ctx.currentTime, 0.15);
+      // Warm professional sound fader mapping (exponent 1.2 holds fuller volume at low/mid)
+      const energy = Math.pow(this.rainTargetVol, 1.2);
+      this.rainGain.gain.setTargetAtTime(energy, this.ctx.currentTime, 0.15);
     }
   }
 
@@ -326,7 +488,15 @@ class AmbientAudioEngine {
     this.ensureRunning();
     this.forestTargetVol = Math.max(0, Math.min(100, vol)) / 100;
     if (this.ctx && this.forestGain) {
-      this.forestGain.gain.setTargetAtTime(this.forestTargetVol * 0.7, this.ctx.currentTime, 0.15); // scaled slightly for balance
+      // Scale general forest wind allowing full max fader representation
+      const energy = Math.pow(this.forestTargetVol, 1.2);
+      this.forestGain.gain.setTargetAtTime(energy, this.ctx.currentTime, 0.15);
+      
+      if (this.cricketGain) {
+        // Crickets hum louder at high volumes
+        const crktTarget = energy * 0.55;
+        this.cricketGain.gain.setTargetAtTime(crktTarget, this.ctx.currentTime, 0.15);
+      }
     }
   }
 
@@ -334,22 +504,19 @@ class AmbientAudioEngine {
     this.ensureRunning();
     this.whiteTargetVol = Math.max(0, Math.min(100, vol)) / 100;
     if (this.ctx && this.whiteGain) {
-      // Deep brown noise is highly intense, scale it nicely for a comfortable soft room tone
-      this.whiteGain.gain.setTargetAtTime(this.whiteTargetVol * 0.35, this.ctx.currentTime, 0.15);
+      // White fader curve mapping - waves are magnificent at full power
+      const energy = Math.pow(this.whiteTargetVol, 1.2) * 1.15;
+      this.whiteGain.gain.setTargetAtTime(energy, this.ctx.currentTime, 0.15);
     }
   }
 
   public stopAll() {
-    if (this.chirpTimer) {
-      clearTimeout(this.chirpTimer);
-    }
+    if (this.chirpTimer) clearTimeout(this.chirpTimer);
+    if (this.thunderTimer) clearTimeout(this.thunderTimer);
     
-    // Smooth ramp down of all gains
     const now = this.ctx?.currentTime || 0;
     if (this.ctx) {
-      this.rainGain?.gain.setTargetAtTime(0, now, 0.1);
-      this.forestGain?.gain.setTargetAtTime(0, now, 0.1);
-      this.whiteGain?.gain.setTargetAtTime(0, now, 0.1);
+      this.masterGain?.gain.setTargetAtTime(0, now, 0.15);
     }
     
     setTimeout(() => {
@@ -357,22 +524,28 @@ class AmbientAudioEngine {
         this.rainSource?.stop();
         this.forestWindSource?.stop();
         this.whiteSource?.stop();
-        this.windLFO?.stop();
-        this.rainLFO?.stop();
+        this.oceanWavesLFO?.stop();
+        this.windGustsLFO?.stop();
+        this.cricketLFO?.stop();
+        this.cricketOsc?.stop();
         this.ctx?.close();
       } catch (e) {}
       
       this.ctx = null;
       this.analyser = null;
+      this.masterGain = null;
       this.rainGain = null;
       this.forestGain = null;
       this.whiteGain = null;
       this.rainSource = null;
       this.forestWindSource = null;
       this.whiteSource = null;
-      this.windLFO = null;
-      this.rainLFO = null;
-    }, 200);
+      this.oceanWavesLFO = null;
+      this.windGustsLFO = null;
+      this.cricketLFO = null;
+      this.cricketOsc = null;
+      this.cricketGain = null;
+    }, 250);
   }
 
   public getAnalyser(): AnalyserNode | null {
@@ -380,5 +553,4 @@ class AmbientAudioEngine {
   }
 }
 
-// Export a singleton instance of the synthesis engine
 export const ambientAudio = new AmbientAudioEngine();

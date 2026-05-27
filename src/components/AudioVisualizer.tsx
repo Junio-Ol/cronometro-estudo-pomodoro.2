@@ -116,10 +116,10 @@ export function AudioVisualizer({ theme = 'violet' }: { theme?: string }) {
         const rawMids = midSum / ((offsetMids - offsetLows) || 1) / 255;
         const rawHighs = highSum / ((bufferLength - offsetMids) || 1) / 255;
 
-        // Ultra smooth interpolate transition (no visual stuttering)
-        smoothedLows += (rawLows - smoothedLows) * 0.12;
-        smoothedMids += (rawMids - smoothedMids) * 0.12;
-        smoothedHighs += (rawHighs - smoothedHighs) * 0.12;
+        // Ultra smooth interpolate transition (optimized for a silky organic glide)
+        smoothedLows += (rawLows - smoothedLows) * 0.05;
+        smoothedMids += (rawMids - smoothedMids) * 0.05;
+        smoothedHighs += (rawHighs - smoothedHighs) * 0.05;
       } else {
         // Smooth ambient idle breathe mode when audio is suspended or offline
         const timeFactor = Date.now() * 0.001;
@@ -127,15 +127,15 @@ export function AudioVisualizer({ theme = 'violet' }: { theme?: string }) {
         const breatheMids = 0.05 + Math.abs(Math.cos(timeFactor * 1.3)) * 0.04;
         const breatheHighs = 0.03 + Math.abs(Math.sin(timeFactor * 1.7)) * 0.03;
 
-        smoothedLows += (breatheLows - smoothedLows) * 0.05;
-        smoothedMids += (breatheMids - smoothedMids) * 0.05;
-        smoothedHighs += (breatheHighs - smoothedHighs) * 0.05;
+        smoothedLows += (breatheLows - smoothedLows) * 0.02;
+        smoothedMids += (breatheMids - smoothedMids) * 0.02;
+        smoothedHighs += (breatheHighs - smoothedHighs) * 0.02;
       }
 
-      // Increment phases independently to generate intersecting ribbons
-      phase1 += 0.03 + smoothedLows * 0.04;  // moves in positive direction
-      phase2 -= 0.04 + smoothedMids * 0.05;  // moves in reverse
-      phase3 += 0.05 + smoothedHighs * 0.06; // detail wave vibrates slightly faster
+      // Increment phases with meticulously calibrated low speed to guarantee premium fluid motion
+      phase1 += 0.008 + smoothedLows * 0.012;  // moves gently in positive direction
+      phase2 -= 0.010 + smoothedMids * 0.015;  // moves gently in reverse
+      phase3 += 0.012 + smoothedHighs * 0.018; // detail wave flows with premium grace
 
       // Wave configurations: different bands dictate different wave scales
       // 1. Primary Wave (Bass / Lows)

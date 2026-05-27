@@ -56,6 +56,7 @@ class AmbientAudioEngine {
     // Create Analyser
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 128; // lightweight, fast frequency visualizer response
+    this.analyser.smoothingTimeConstant = 0.85; // professional, fluid frequency transitions
 
     // Create Master Gain node for elegant fade-ins and fade-outs
     this.masterGain = this.ctx.createGain();

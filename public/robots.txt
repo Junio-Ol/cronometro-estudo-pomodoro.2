@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://relogiofoco.com.br/sitemap.xml
